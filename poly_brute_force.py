@@ -50,10 +50,10 @@ def import_QUBO():
     qubits_per_var = 3
     basis = np.array([2 ** i for i in range(qubits_per_var)])
 
-    basis_offset = np.array([-1, -2])
-    basis_coeff = np.ones(num_equations)
+    basis_offset = np.array([1.5, 0])
+    basis_coeff = np.array([0.5, 1])
 
-    basis_maps = {'basis': basis, 'basis_offset': basis_offset, 'basis_coeff': basis_coeff}
+    basis_map = {'basis': basis, 'basis_offset': basis_offset, 'basis_coeff': basis_coeff}
 
     ### calculate QUBO offsets
     # x labels the states, o labels the operator, b labels the offset
@@ -151,25 +151,25 @@ def import_QUBO():
     extended_qubo = dict()
 
     # dimension 0
-    extended_qubo['qubit_residual_dim0'] = offset_residual_dim0_o
+    extended_qubo['qubit_residual_dim0_o'] = offset_residual_dim0_o
 
     # dimension 1
-    extended_qubo['qubit_residual_dim1_blu'] = np.reshape(
+    extended_qubo['qubit_residual_dim1_ox'] = np.reshape(
         np.einsum('i,j->ij', basis_coeff * offset_residual_dim1_ox, basis), (num_equations * qubits_per_var))
-    extended_qubo['qubit_residual_dim1_gre'] = np.reshape(
+    extended_qubo['qubit_residual_dim1_xo'] = np.reshape(
         np.einsum('i,j->ij', basis_coeff * offset_residual_dim1_xo, basis), (num_equations * qubits_per_var))
 
     # dimension 2
     basis_coeff_dim2 = np.einsum('i,j->ij', basis_coeff, basis_coeff)
     basis_dim2 = np.einsum('i,j->ij', basis, basis)
 
-    extended_qubo['qubit_residual_dim2_blu'] = np.reshape(
+    extended_qubo['qubit_residual_dim2_oxx'] = np.reshape(
         np.einsum('ij,kl->ikjl', basis_coeff_dim2 * offset_residual_dim2_oxx, basis_dim2),
         (num_equations * qubits_per_var, num_equations * qubits_per_var))
-    extended_qubo['qubit_residual_dim2_gre'] = np.reshape(
+    extended_qubo['qubit_residual_dim2_xox'] = np.reshape(
         np.einsum('ij,kl->ikjl', basis_coeff_dim2 * offset_residual_dim2_xox, basis_dim2),
         (num_equations * qubits_per_var, num_equations * qubits_per_var))
-    extended_qubo['qubit_residual_dim2_yel'] = np.reshape(
+    extended_qubo['qubit_residual_dim2_xxo'] = np.reshape(
         np.einsum('ij,kl->ikjl', basis_coeff_dim2 * offset_residual_dim2_xxo, basis_dim2),
         (num_equations * qubits_per_var, num_equations * qubits_per_var))
 
@@ -177,10 +177,10 @@ def import_QUBO():
     basis_coeff_dim3 = np.einsum('i,j,k->ijk', basis_coeff, basis_coeff, basis_coeff)
     basis_dim3 = np.einsum('i,j,k->ijk', basis, basis, basis)
 
-    extended_qubo['qubit_residual_dim3_gre'] = np.reshape(
+    extended_qubo['qubit_residual_dim3_xoxx'] = np.reshape(
         np.einsum('ijk,lmn->iljmkn', basis_coeff_dim3 * offset_residual_dim3_xoxx, basis_dim3),
         (num_equations * qubits_per_var, num_equations * qubits_per_var, num_equations * qubits_per_var))
-    extended_qubo['qubit_residual_dim3_yel'] = np.reshape(
+    extended_qubo['qubit_residual_dim3_xxox'] = np.reshape(
         np.einsum('ijk,lmn->iljmkn', basis_coeff_dim3 * offset_residual_dim3_xxox, basis_dim3),
         (num_equations * qubits_per_var, num_equations * qubits_per_var, num_equations * qubits_per_var))
 
@@ -188,35 +188,41 @@ def import_QUBO():
     basis_coeff_dim4 = np.einsum('i,j,k,l->ijkl', basis_coeff, basis_coeff, basis_coeff, basis_coeff)
     basis_dim4 = np.einsum('i,j,k,l->ijkl', basis, basis, basis, basis)
 
-    extended_qubo['qubit_residual_dim4'] = np.reshape(
+    extended_qubo['qubit_residual_dim4_xxoxx'] = np.reshape(
         np.einsum('ijkl,mnop->imjnkolp', basis_coeff_dim4 * offset_residual_dim4_xxoxx, basis_dim4),
         (num_equations * qubits_per_var, num_equations * qubits_per_var, num_equations * qubits_per_var,
          num_equations * qubits_per_var))
 
-    return extended_qubo, basis_maps
+    return extended_qubo, basis_map
 
 
 # evaluate the QUBO given binary vector "eigenvector" and return energy "eigenvalue"
 def eval_QUBO(extended_qubo, eigenvector):
-    D0 = extended_qubo['qubit_residual_dim0']
+    eigenvalue_dim0_o = extended_qubo['qubit_residual_dim0_o']
+    eigenvalue_dim0 = eigenvalue_dim0_o
 
-    D1_blu = np.einsum('j,j', extended_qubo['qubit_residual_dim1_blu'], eigenvector)
-    D1_gre = np.einsum('j,j', eigenvector.T, extended_qubo['qubit_residual_dim1_gre'])
-    D1 = D1_blu + D1_gre
+    eigenvalue_dim1_ox = np.einsum('j,j', extended_qubo['qubit_residual_dim1_ox'], eigenvector)
+    eigenvalue_dim1_xo = np.einsum('j,j', eigenvector.T, extended_qubo['qubit_residual_dim1_xo'])
+    eigenvalue_dim1 = eigenvalue_dim1_ox + eigenvalue_dim1_xo
 
-    D2_blu = np.einsum('jk,j,k', extended_qubo['qubit_residual_dim2_blu'], eigenvector, eigenvector)
-    D2_gre = np.einsum('j,jk,k', eigenvector.T, extended_qubo['qubit_residual_dim2_gre'], eigenvector)
-    D2_yel = np.einsum('k,j,kj', eigenvector.T, eigenvector.T, extended_qubo['qubit_residual_dim2_yel'])
-    D2 = D2_blu + D2_gre + D2_yel
+    eigenvalue_dim2_oxx = np.einsum('jk,j,k', extended_qubo['qubit_residual_dim2_oxx'], eigenvector, eigenvector)
+    eigenvalue_dim2_xox = np.einsum('j,jk,k', eigenvector.T, extended_qubo['qubit_residual_dim2_xox'], eigenvector)
+    eigenvalue_dim2_xxo = np.einsum('k,j,kj', eigenvector.T, eigenvector.T, extended_qubo['qubit_residual_dim2_xxo'])
+    eigenvalue_dim2 = eigenvalue_dim2_oxx + eigenvalue_dim2_xox + eigenvalue_dim2_xxo
 
-    D3_gre = np.einsum('j,jkl,k,l', eigenvector.T, extended_qubo['qubit_residual_dim3_gre'], eigenvector, eigenvector)
-    D3_yel = np.einsum('k,j,kjl,l', eigenvector.T, eigenvector.T, extended_qubo['qubit_residual_dim3_yel'], eigenvector)
-    D3 = D3_gre + D3_yel
+    eigenvalue_dim3_xoxx = np.einsum('j,jkl,k,l', eigenvector.T, extended_qubo['qubit_residual_dim3_xoxx'], eigenvector,
+                                     eigenvector)
+    eigenvalue_dim3_xxox = np.einsum('k,j,kjl,l', eigenvector.T, eigenvector.T,
+                                     extended_qubo['qubit_residual_dim3_xxox'], eigenvector)
+    eigenvalue_dim3 = eigenvalue_dim3_xoxx + eigenvalue_dim3_xxox
 
-    D4 = np.einsum('k,j,kjnm,n,m', eigenvector.T, eigenvector.T, extended_qubo['qubit_residual_dim4'], eigenvector,
-                   eigenvector)
+    eigenvalue_dim4_xxoxx = np.einsum('k,j,kjnm,n,m', eigenvector.T, eigenvector.T,
+                                      extended_qubo['qubit_residual_dim4_xxoxx'],
+                                      eigenvector,
+                                      eigenvector)
+    eigenvalue_dim4 = eigenvalue_dim4_xxoxx
 
-    eigenvalue = D0 + D1 + D2 + D3 + D4
+    eigenvalue = eigenvalue_dim0 + eigenvalue_dim1 + eigenvalue_dim2 + eigenvalue_dim3 + eigenvalue_dim4
     return eigenvalue
 
 
@@ -237,7 +243,7 @@ def int_to_bin(hilbert_index, num_of_qubits):
 
 
 def argmin_QUBO(extended_qubo):
-    num_of_qubits = len(extended_qubo['qubit_residual_dim1_blu'])
+    num_of_qubits = len(extended_qubo['qubit_residual_dim1_ox'])
     ground_state_eigenvector = int_to_bin(hilbert_index=0, num_of_qubits=num_of_qubits)
     ground_state_eigenvalue = eval_QUBO(extended_qubo, ground_state_eigenvector)
     result_eigenvalue = []
