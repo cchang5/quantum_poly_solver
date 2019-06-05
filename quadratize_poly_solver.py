@@ -2,13 +2,13 @@ import numpy as np
 import poly_brute_force as poly
 
 
-def quadratize(extended_qubo):
+def quadratize(reduced_qubo):
     # quadratizes up to 4-body interactions
     # reduction by substitution (Rosenberg 1975)
     # quadratization in discrete optimization and quantum mechanics
     # section V. A.
     # Nike Dattani arXiv: 1901.04405
-    num_problem_qubits = len(extended_qubo['qubit_residual_dim1'])
+    num_problem_qubits = len(reduced_qubo['qubit_residual_dim1'])
     num_auxiliary_qubits = int(num_problem_qubits * (num_problem_qubits - 1) / 2)
     num_qubo_qubits = num_problem_qubits + num_auxiliary_qubits
     qubo = np.zeros((num_qubo_qubits, num_qubo_qubits), float)
@@ -16,7 +16,7 @@ def quadratize(extended_qubo):
     # construct constraint equations
     # auxiliary qubit a_ij = b_i b_j is enforced by
     # b_i b_j - 2 b_i a_ij - 2 b_j a_ij + 3 a_ij
-    coeff_scale = 0
+    coeff_scale = 10000
     coeff_bb = coeff_scale * 1
     coeff_ba = coeff_scale * -2
     coeff_aa = coeff_scale * 3
@@ -67,66 +67,55 @@ def quadratize(extended_qubo):
 
     # load extended_qubo into quadratized qubo
     # dim 0
-    qubo_constant = extended_qubo['qubit_residual_dim0']
+    qubo_constant = reduced_qubo['qubit_residual_dim0'].copy()
+    # check if all non-zero entries are remapped
+    reduced_qubo['qubit_residual_dim0'] = np.array(0)
 
-    # dim 1, dim 2 diagonal, dim 3 3 repeating indices, dim 4 4 repeating indices
+    # dim 1
     for index_ij in range(num_problem_qubits):
-        qubo[index_ij, index_ij] += extended_qubo['qubit_residual_dim1'][index_ij]
-        qubo[index_ij, index_ij] += extended_qubo['qubit_residual_dim2'][index_ij, index_ij]
-        qubo[index_ij, index_ij] += extended_qubo['qubit_residual_dim3'][index_ij, index_ij, index_ij]
-        qubo[index_ij, index_ij] += extended_qubo['qubit_residual_dim4'][index_ij, index_ij, index_ij, index_ij]
+        qubo[index_ij, index_ij] += reduced_qubo['qubit_residual_dim1'][index_ij]
+        # check if all non-zero entries are remapped
+        reduced_qubo['qubit_residual_dim1'][index_ij] = 0
 
-    # dim 2 off diagonal, dim 3 2 repeating indices, dim 4 3 repeating indices
-    # accumulate to upper triangular matrix
-    from sympy.utilities.iterables import multiset_permutations
+    # dim 2
     for index_j in range(num_problem_qubits):
-        for index_i in range(num_problem_qubits):
-            if index_i == index_j:
-                continue
-            sorted_indices = np.sort([index_i, index_j])
-            row_index = sorted_indices[0]
-            col_index = sorted_indices[1]
-            # dim 2
-            qubo[row_index, col_index] += extended_qubo['qubit_residual_dim2'][index_i, index_j]
-            # dim 3
-            index_permutations = list(multiset_permutations([index_i, index_i, index_j]))
-            qubo[row_index, col_index] += sum(
-                [extended_qubo['qubit_residual_dim3'][idx[0], idx[1], idx[2]] for idx in index_permutations])
-            # dim 4
-            index_permutations = list(multiset_permutations([index_i, index_i, index_i, index_j]))
-            qubo[row_index, col_index] += sum(
-                [extended_qubo['qubit_residual_dim4'][idx[0], idx[1], idx[2], idx[3]] for idx in index_permutations])
+        for index_i in range(index_j):
+            qubo[index_i, index_j] += reduced_qubo['qubit_residual_dim2'][index_i, index_j]
+            # check if all non-zero entries are remapped
+            reduced_qubo['qubit_residual_dim2'][index_i, index_j] = 0
 
-    # dim 3 off diagonal, dim 4 2 repeating indices
-    # accumulate to upper triangular matrix
+    print(pd.DataFrame(qubo))
+
+    # dim 3
     for index_k in range(num_problem_qubits):
-        for index_j in range(num_problem_qubits):
-            for index_i in range(num_problem_qubits):
-                if len(np.unique([index_i, index_j, index_k])) < 3:
-                    continue
-                sorted_indices = np.sort([index_i, index_j, index_k])
-                row_index = sorted_indices[0]
-                col_index = qubo_to_aux_index[(sorted_indices[1], sorted_indices[2])]
-                # dim 3
-                qubo[row_index, col_index] += extended_qubo['qubit_residual_dim3'][index_i, index_j, index_k]
-                # dim 4
-                index_permutations = list(multiset_permutations([index_i, index_i, index_j, index_k]))
-                qubo[row_index, col_index] += sum(
-                    [extended_qubo['qubit_residual_dim4'][idx[0], idx[1], idx[2], idx[3]] for idx in
-                     index_permutations])
-    # dim 4 off diagonal
-    # accumulate to upper triangular matrix
+        for index_j in range(index_k):
+            for index_i in range(index_j):
+                row_index = index_i
+                col_index = qubo_to_aux_index[(index_j, index_k)]
+                qubo[row_index, col_index] += reduced_qubo['qubit_residual_dim3'][index_i, index_j, index_k]
+                # check if all non-zero entries are remapped
+                reduced_qubo['qubit_residual_dim3'][index_i, index_j, index_k] = 0
+
+    print(pd.DataFrame(qubo))
+    # dim 4
     for index_l in range(num_problem_qubits):
-        for index_k in range(num_problem_qubits):
-            for index_j in range(num_problem_qubits):
-                for index_i in range(num_problem_qubits):
-                    if len(np.unique([index_i, index_j, index_k, index_l])) < 4:
-                        continue
-                    sorted_indices = np.sort([index_i, index_j, index_k, index_l])
-                    row_index = qubo_to_aux_index[(sorted_indices[0], sorted_indices[1])]
-                    col_index = qubo_to_aux_index[(sorted_indices[2], sorted_indices[3])]
-                    qubo[row_index, col_index] += extended_qubo['qubit_residual_dim4'][
+        for index_k in range(index_l):
+            for index_j in range(index_k):
+                for index_i in range(index_j):
+                    row_index = qubo_to_aux_index[(index_i, index_j)]
+                    col_index = qubo_to_aux_index[(index_k, index_l)]
+                    qubo[row_index, col_index] += reduced_qubo['qubit_residual_dim4'][
                         index_i, index_j, index_k, index_l]
+                    # check if all non-zero entries are remapped
+                    reduced_qubo['qubit_residual_dim4'][index_i, index_j, index_k, index_l] = 0
+
+    # check
+    check = sum([sum(reduced_qubo[key].flatten()) for key in reduced_qubo])
+    print("check if all non-zero entires are remapped:")
+    if check == 0:
+        print(True)
+    else:
+        print(False)
 
     print(pd.DataFrame(qubo))
     print(qubo_constant)
@@ -149,15 +138,16 @@ def argmin_QUBO(qubo, qubo_constant):
         if eigenvalue < ground_state_eigenvalue:
             ground_state_eigenvalue = eigenvalue
             ground_state_eigenvector = eigenvector
-    return ground_state_eigenvector, result_eigenvalue, result_eigenvector
+    return ground_state_eigenvector, ground_state_eigenvalue, result_eigenvalue, result_eigenvector
 
 
 def main():
-    extended_qubo, accumulated_qubo, basis_map = poly.import_QUBO()
-    qubo, qubo_constant = quadratize(extended_qubo)
-    ground_state_eigenvector, result_eigenvalue, result_eigenvector = argmin_QUBO(qubo, qubo_constant)
-    print(np.sort(result_eigenvalue))
-    print(ground_state_eigenvector)
+    extended_qubo, triangle_qubo, reduced_qubo, basis_map = poly.import_QUBO()
+    qubo, qubo_constant = quadratize(reduced_qubo)
+    ground_state_eigenvector, ground_state_eigenvalue, result_eigenvalue, result_eigenvector = argmin_QUBO(qubo,
+                                                                                                           qubo_constant)
+    print('g.s. ev:', ground_state_eigenvalue)
+    print('g.s. vec:', ground_state_eigenvector)
 
 
 if __name__ == "__main__":
