@@ -1,3 +1,6 @@
+# Don't push the apikey!
+apikey.txt
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]

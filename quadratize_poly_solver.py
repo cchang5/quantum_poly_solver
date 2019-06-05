@@ -1,18 +1,9 @@
+import pandas as pd
 import numpy as np
 import poly_brute_force as poly
 
 
-def quadratize(reduced_qubo):
-    # quadratizes up to 4-body interactions
-    # reduction by substitution (Rosenberg 1975)
-    # quadratization in discrete optimization and quantum mechanics
-    # section V. A.
-    # Nike Dattani arXiv: 1901.04405
-    num_problem_qubits = len(reduced_qubo['qubit_residual_dim1'])
-    num_auxiliary_qubits = int(num_problem_qubits * (num_problem_qubits - 1) / 2)
-    num_qubo_qubits = num_problem_qubits + num_auxiliary_qubits
-    qubo = np.zeros((num_qubo_qubits, num_qubo_qubits), float)
-
+def constraint_hamiltonian(qubo, num_problem_qubits, num_qubo_qubits):
     # construct constraint equations
     # auxiliary qubit a_ij = b_i b_j is enforced by
     # b_i b_j - 2 b_i a_ij - 2 b_j a_ij + 3 a_ij
@@ -62,10 +53,29 @@ def quadratize(reduced_qubo):
     for index_ij in range(num_problem_qubits, num_qubo_qubits):
         qubo[index_ij, index_ij] = coeff_aa
 
-    import pandas as pd
+    print("constraint hamiltonian")
     print(pd.DataFrame(qubo))
 
-    # load extended_qubo into quadratized qubo
+    return qubo, qubo_to_aux_index
+
+
+def quadratize(reduced_qubo):
+    # quadratizes up to 4-body interactions
+    # reduction by substitution (Rosenberg 1975)
+    # quadratization in discrete optimization and quantum mechanics
+    # section V. A.
+    # Nike Dattani arXiv: 1901.04405
+
+    # initialize quadratized hamiltonian
+    num_problem_qubits = len(reduced_qubo['qubit_residual_dim1'])
+    num_auxiliary_qubits = int(num_problem_qubits * (num_problem_qubits - 1) / 2)
+    num_qubo_qubits = num_problem_qubits + num_auxiliary_qubits
+    quad_qubo = np.zeros((num_qubo_qubits, num_qubo_qubits), float)
+
+    # construct constraint Hamiltonian
+    quad_qubo, qubo_to_aux_index = constraint_hamiltonian(quad_qubo, num_problem_qubits, num_qubo_qubits)
+
+    # load reduced qubo into quadratized qubo
     # dim 0
     qubo_constant = reduced_qubo['qubit_residual_dim0'].copy()
     # check if all non-zero entries are remapped
@@ -73,18 +83,16 @@ def quadratize(reduced_qubo):
 
     # dim 1
     for index_ij in range(num_problem_qubits):
-        qubo[index_ij, index_ij] += reduced_qubo['qubit_residual_dim1'][index_ij]
+        quad_qubo[index_ij, index_ij] += reduced_qubo['qubit_residual_dim1'][index_ij]
         # check if all non-zero entries are remapped
         reduced_qubo['qubit_residual_dim1'][index_ij] = 0
 
     # dim 2
     for index_j in range(num_problem_qubits):
         for index_i in range(index_j):
-            qubo[index_i, index_j] += reduced_qubo['qubit_residual_dim2'][index_i, index_j]
+            quad_qubo[index_i, index_j] += reduced_qubo['qubit_residual_dim2'][index_i, index_j]
             # check if all non-zero entries are remapped
             reduced_qubo['qubit_residual_dim2'][index_i, index_j] = 0
-
-    print(pd.DataFrame(qubo))
 
     # dim 3
     for index_k in range(num_problem_qubits):
@@ -92,11 +100,10 @@ def quadratize(reduced_qubo):
             for index_i in range(index_j):
                 row_index = index_i
                 col_index = qubo_to_aux_index[(index_j, index_k)]
-                qubo[row_index, col_index] += reduced_qubo['qubit_residual_dim3'][index_i, index_j, index_k]
+                quad_qubo[row_index, col_index] += reduced_qubo['qubit_residual_dim3'][index_i, index_j, index_k]
                 # check if all non-zero entries are remapped
                 reduced_qubo['qubit_residual_dim3'][index_i, index_j, index_k] = 0
 
-    print(pd.DataFrame(qubo))
     # dim 4
     for index_l in range(num_problem_qubits):
         for index_k in range(index_l):
@@ -104,22 +111,23 @@ def quadratize(reduced_qubo):
                 for index_i in range(index_j):
                     row_index = qubo_to_aux_index[(index_i, index_j)]
                     col_index = qubo_to_aux_index[(index_k, index_l)]
-                    qubo[row_index, col_index] += reduced_qubo['qubit_residual_dim4'][
+                    quad_qubo[row_index, col_index] += reduced_qubo['qubit_residual_dim4'][
                         index_i, index_j, index_k, index_l]
                     # check if all non-zero entries are remapped
                     reduced_qubo['qubit_residual_dim4'][index_i, index_j, index_k, index_l] = 0
 
     # check
-    check = sum([sum(reduced_qubo[key].flatten()) for key in reduced_qubo])
-    print("check if all non-zero entires are remapped:")
-    if check == 0:
-        print(True)
-    else:
-        print(False)
+    print("quadratized hamiltonian")
+    print(pd.DataFrame(quad_qubo))
+    print("qubo constant: ", qubo_constant)
 
-    print(pd.DataFrame(qubo))
-    print(qubo_constant)
-    return qubo, qubo_constant
+    check = sum([sum(reduced_qubo[key].flatten()) for key in reduced_qubo])
+    if check == 0:
+        print("check if all non-zero entires are remapped:", True)
+    else:
+        print("check if all non-zero entires are remapped:", False)
+
+    return quad_qubo, qubo_constant, qubo_to_aux_index
 
 
 def argmin_QUBO(qubo, qubo_constant):
@@ -141,13 +149,43 @@ def argmin_QUBO(qubo, qubo_constant):
     return ground_state_eigenvector, ground_state_eigenvalue, result_eigenvalue, result_eigenvector
 
 
+def quadratized_inverse_mapping(eigenvector, eigenvalue, basis_map, qubo_to_aux_index):
+    num_problem_qubits = len(basis_map['basis']) + len(basis_map['basis_offset'])
+
+    # reconstruct result
+    result = []
+    problem_eigenvector = eigenvector[:num_problem_qubits]
+    num_equations = len(basis_map['basis_coeff'])
+    qubits_per_var = len(basis_map['basis'])
+    for idx_params in range(num_equations):
+        result.append(
+            basis_map['basis_coeff'][idx_params]
+            * sum(
+                basis_map['basis'] * problem_eigenvector[
+                                     idx_params * qubits_per_var:idx_params * qubits_per_var + qubits_per_var])
+            + basis_map['basis_offset'][idx_params])
+
+    print("result:", result)
+    print("squared residual:", eigenvalue)
+
+    # check constraint equations
+    print("check constraints")
+    for qubit_idx in range(num_problem_qubits):
+        for pair_idx in range(qubit_idx):
+            print("x_%s%s == x_%s x_%s: " % (pair_idx, qubit_idx, pair_idx, qubit_idx),
+                  eigenvector[qubit_idx] * eigenvector[pair_idx] == eigenvector[
+                      qubo_to_aux_index[(pair_idx, qubit_idx)]])
+
+    return result
+
+
 def main():
     extended_qubo, triangle_qubo, reduced_qubo, basis_map = poly.import_QUBO()
-    qubo, qubo_constant = quadratize(reduced_qubo)
-    ground_state_eigenvector, ground_state_eigenvalue, result_eigenvalue, result_eigenvector = argmin_QUBO(qubo,
-                                                                                                           qubo_constant)
-    print('g.s. ev:', ground_state_eigenvalue)
-    print('g.s. vec:', ground_state_eigenvector)
+    quadratized_qubo, qubo_constant, qubo_to_aux_index = quadratize(reduced_qubo)
+    ground_state_eigenvector, ground_state_eigenvalue, result_eigenvalue, result_eigenvector = argmin_QUBO(
+        quadratized_qubo, qubo_constant)
+    quadratized_inverse_mapping(ground_state_eigenvector, ground_state_eigenvalue, basis_map, qubo_to_aux_index)
+    return quadratized_qubo, qubo_constant, basis_map, qubo_to_aux_index
 
 
 if __name__ == "__main__":

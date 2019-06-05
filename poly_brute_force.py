@@ -279,12 +279,17 @@ def dimensional_reduction(triangle_qubo):
             # dim 2
             reduced_qubo['qubit_residual_dim2'][idx_i, idx_j] += triangle_qubo['qubit_residual_dim2'][idx_i, idx_j]
             # dim 3
-            reduced_qubo['qubit_residual_dim2'][idx_i, idx_j] += triangle_qubo['qubit_residual_dim3'][idx_i, idx_j, idx_j]
-            reduced_qubo['qubit_residual_dim2'][idx_i, idx_j] += triangle_qubo['qubit_residual_dim3'][idx_i, idx_i, idx_j]
+            reduced_qubo['qubit_residual_dim2'][idx_i, idx_j] += triangle_qubo['qubit_residual_dim3'][
+                idx_i, idx_j, idx_j]
+            reduced_qubo['qubit_residual_dim2'][idx_i, idx_j] += triangle_qubo['qubit_residual_dim3'][
+                idx_i, idx_i, idx_j]
             # dim 4
-            reduced_qubo['qubit_residual_dim2'][idx_i, idx_j] += triangle_qubo['qubit_residual_dim4'][idx_i, idx_j, idx_j, idx_j]
-            reduced_qubo['qubit_residual_dim2'][idx_i, idx_j] += triangle_qubo['qubit_residual_dim4'][idx_i, idx_i, idx_j, idx_j]
-            reduced_qubo['qubit_residual_dim2'][idx_i, idx_j] += triangle_qubo['qubit_residual_dim4'][idx_i, idx_i, idx_i, idx_j]
+            reduced_qubo['qubit_residual_dim2'][idx_i, idx_j] += triangle_qubo['qubit_residual_dim4'][
+                idx_i, idx_j, idx_j, idx_j]
+            reduced_qubo['qubit_residual_dim2'][idx_i, idx_j] += triangle_qubo['qubit_residual_dim4'][
+                idx_i, idx_i, idx_j, idx_j]
+            reduced_qubo['qubit_residual_dim2'][idx_i, idx_j] += triangle_qubo['qubit_residual_dim4'][
+                idx_i, idx_i, idx_i, idx_j]
 
     # dim 3
     reduced_qubo['qubit_residual_dim3'] = np.zeros_like(triangle_qubo['qubit_residual_dim3'])
@@ -292,11 +297,15 @@ def dimensional_reduction(triangle_qubo):
         for idx_j in range(idx_k):
             for idx_i in range(idx_j):
                 # dim 3
-                reduced_qubo['qubit_residual_dim3'][idx_i, idx_j, idx_k] += triangle_qubo['qubit_residual_dim3'][idx_i, idx_j, idx_k]
+                reduced_qubo['qubit_residual_dim3'][idx_i, idx_j, idx_k] += triangle_qubo['qubit_residual_dim3'][
+                    idx_i, idx_j, idx_k]
                 # dim 4
-                reduced_qubo['qubit_residual_dim3'][idx_i, idx_j, idx_k] += triangle_qubo['qubit_residual_dim4'][idx_i, idx_i, idx_j, idx_k]
-                reduced_qubo['qubit_residual_dim3'][idx_i, idx_j, idx_k] += triangle_qubo['qubit_residual_dim4'][idx_i, idx_j, idx_j, idx_k]
-                reduced_qubo['qubit_residual_dim3'][idx_i, idx_j, idx_k] += triangle_qubo['qubit_residual_dim4'][idx_i, idx_j, idx_k, idx_k]
+                reduced_qubo['qubit_residual_dim3'][idx_i, idx_j, idx_k] += triangle_qubo['qubit_residual_dim4'][
+                    idx_i, idx_i, idx_j, idx_k]
+                reduced_qubo['qubit_residual_dim3'][idx_i, idx_j, idx_k] += triangle_qubo['qubit_residual_dim4'][
+                    idx_i, idx_j, idx_j, idx_k]
+                reduced_qubo['qubit_residual_dim3'][idx_i, idx_j, idx_k] += triangle_qubo['qubit_residual_dim4'][
+                    idx_i, idx_j, idx_k, idx_k]
 
     # dim 4
     reduced_qubo['qubit_residual_dim4'] = np.zeros_like(triangle_qubo['qubit_residual_dim4'])
@@ -304,9 +313,11 @@ def dimensional_reduction(triangle_qubo):
         for idx_k in range(idx_l):
             for idx_j in range(idx_k):
                 for idx_i in range(idx_j):
-                    reduced_qubo['qubit_residual_dim4'][idx_i, idx_j, idx_k, idx_l] += triangle_qubo['qubit_residual_dim4'][idx_i, idx_j, idx_k, idx_l]
+                    reduced_qubo['qubit_residual_dim4'][idx_i, idx_j, idx_k, idx_l] += \
+                        triangle_qubo['qubit_residual_dim4'][idx_i, idx_j, idx_k, idx_l]
 
     return reduced_qubo
+
 
 # import the QUBO data and return numpy 2D square array
 def import_QUBO():
@@ -374,16 +385,19 @@ def argmin_QUBO(extended_qubo):
     return ground_state_eigenvector, result_eigenvalue, result_eigenvector
 
 
-def bit_to_decimal(bx, basis_map):
+def inverse_mapping(eigenvector, basis_map):
     presult = []
-    nparams = len(basis_map['basis_coeff'])
-    bit_precision = len(basis_map['basis'])
-    for i in range(nparams):
+    num_equations = len(basis_map['basis_coeff'])
+    qubits_per_var = len(basis_map['basis'])
+    for idx_params in range(num_equations):
         presult.append(
-            basis_map['basis_coeff'][i]
-            * sum(basis_map['basis'] * bx[i * bit_precision:i * bit_precision + bit_precision])
-            + basis_map['basis_offset'][i])
+            basis_map['basis_coeff'][idx_params]
+            * sum(
+                basis_map['basis'] * eigenvector[
+                                     idx_params * qubits_per_var:idx_params * qubits_per_var + qubits_per_var])
+            + basis_map['basis_offset'][idx_params])
     return presult
+
 
 def evaluate_problem(qubo, basis_map, title):
     # Get arg min for extended qubo and compute energy
@@ -393,8 +407,9 @@ def evaluate_problem(qubo, basis_map, title):
     print(title)
     print("ground state eigenvector = ", ground_state_eigenvector)
     print("ground state eigenvalue  = ", ground_state_eigenvalue)
-    print("solution                 = ", bit_to_decimal(ground_state_eigenvector, basis_map))
+    print("solution                 = ", inverse_mapping(ground_state_eigenvector, basis_map))
     print()
+
 
 def main():
     # Get QUBO matrix
@@ -402,6 +417,7 @@ def main():
     evaluate_problem(extended_qubo, basis_map, 'extended qubo')
     evaluate_problem(triangle_qubo, basis_map, 'upper triangular qubo')
     evaluate_problem(reduced_qubo, basis_map, 'reduced upper triangular qubo')
+
 
 if __name__ == '__main__':
     main()
