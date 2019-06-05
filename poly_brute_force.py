@@ -31,10 +31,10 @@ def define_problem():
     P2[1, 1, 1] = 2
 
     # search parameters
-    qubits_per_var = 2
+    qubits_per_var = 3
     basis = np.array([2 ** i for i in range(qubits_per_var)])
 
-    basis_offset = np.array([1.5, 2])
+    basis_offset = np.array([-0.5, 1])
     basis_coeff = np.array([0.5, 1])
 
     basis_map = {'basis': basis, 'basis_offset': basis_offset, 'basis_coeff': basis_coeff}

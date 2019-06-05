@@ -1,4 +1,6 @@
 import pandas as pd
+
+pd.options.display.max_rows = 999
 import numpy as np
 import poly_brute_force as poly
 
@@ -150,7 +152,7 @@ def argmin_QUBO(qubo, qubo_constant):
 
 
 def quadratized_inverse_mapping(eigenvector, eigenvalue, basis_map, qubo_to_aux_index):
-    num_problem_qubits = len(basis_map['basis']) + len(basis_map['basis_offset'])
+    num_problem_qubits = len(basis_map['basis']) * len(basis_map['basis_offset'])
 
     # reconstruct result
     result = []
@@ -179,14 +181,15 @@ def quadratized_inverse_mapping(eigenvector, eigenvalue, basis_map, qubo_to_aux_
     return result
 
 
-def main():
+def main(evaluate=False):
     extended_qubo, triangle_qubo, reduced_qubo, basis_map = poly.import_QUBO()
     quadratized_qubo, qubo_constant, qubo_to_aux_index = quadratize(reduced_qubo)
-    ground_state_eigenvector, ground_state_eigenvalue, result_eigenvalue, result_eigenvector = argmin_QUBO(
-        quadratized_qubo, qubo_constant)
-    quadratized_inverse_mapping(ground_state_eigenvector, ground_state_eigenvalue, basis_map, qubo_to_aux_index)
+    if evaluate:
+        ground_state_eigenvector, ground_state_eigenvalue, result_eigenvalue, result_eigenvector = argmin_QUBO(
+            quadratized_qubo, qubo_constant)
+        quadratized_inverse_mapping(ground_state_eigenvector, ground_state_eigenvalue, basis_map, qubo_to_aux_index)
     return quadratized_qubo, qubo_constant, basis_map, qubo_to_aux_index
 
 
 if __name__ == "__main__":
-    main()
+    main(True)
