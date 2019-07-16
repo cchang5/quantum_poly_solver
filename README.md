@@ -1,7 +1,7 @@
 # quantum_poly_solver
 
 ## Description
-Scripts that demonstrate a direct algorithm for solving systems of polynomial equations using quantum annealing. These scripts are provided as supplemental material to [SREP-19](https://www.nature.com/srep/). Evaluation on a commercially available D-Wave Quantum Annealer is also provided given a valid api-key.
+Scripts that demonstrate a direct algorithm for solving systems of polynomial equations using quantum annealing. These scripts are provided as supplemental material to [Scientific Reports **9**, 10258 (2019)](https://www.nature.com/articles/s41598-019-46729-0). Evaluation on a commercially available D-Wave Quantum Annealer is also provided given a valid api-key.
 
 - `poly_brute_force.py`
   - `define_problem()` </br> Defines the system of polynomial equations in the form of Eq. (1). The definition of the search space is provided by Eq. (2).
